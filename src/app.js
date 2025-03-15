@@ -1,6 +1,6 @@
 import express from "express"
 import cors from "cors"
-import CookiesParser from "cookies"
+import cookieParser from "cookie-parser"
 
 const app = express()
 
@@ -22,9 +22,28 @@ app.use(express.urlencoded({
 //favicons and images
 app.use(express.static("public")) // ../public file
 
-app.use(CookiesParser()) // Enable cookie parsing
+app.use(cookieParser()); // Enable cookie parsing
+
+// Logging Middleware
+/* import fs from "fs";
+app.use((req, res, next) => {
+    const time = new Date().toLocaleTimeString();
+    let log = `${time} : ${req.method} :: ${req.originalUrl}\n`
+
+    fs.appendFile('requestList.txt', log, err=>{
+        if (err) console.error("Error writing to file:", err);
+    })
+
+    next(); // Move to the next middleware or route
+});
+*/
 
 
+// router import 
+import userRouter from "./routes/user.routes.js"
+
+// routes declaration
+app.use("/api/v1/user", userRouter) // prefix
 
 
 export default app

@@ -37,18 +37,28 @@ const registerUser = asyncHandler(async (req, res) => {
     //multer middleware give more method like req.files
 
     const avatarLocalPath = req.files?.avatar[0]?.path
-    const coverImageLocalPath = req.file?.coverImage[0]?.path
+    // console.log( "multer", req.files)
+    // console.log(avatarLocalPath)
+
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path
+
+    let coverImageLocalPath;
+    if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+        coverImageLocalPath = req.files?.coverImage[0]?.path
+    }
 
     if (!avatarLocalPath) {
-        throw new ApiError(400, "avatar file is required")
+        throw new ApiError(400, "avatar file is required path")
     }
 
     const avatar = await uploadOncloudinary(avatarLocalPath)
     const coverImage = await uploadOncloudinary(coverImageLocalPath)
 
+    
     if (!avatar) {
         throw new ApiError(400, "avatar image is required")
     }
+    
 
     const user = await User.create({
         username: username.toLowerCase(),
@@ -67,6 +77,8 @@ const registerUser = asyncHandler(async (req, res) => {
     if (!createdUser) {
         throw new ApiError(500, "something went wrong while registering the user" )
     }
+
+    console.log(createdUser)
 
     return res.status(201).json(
         new ApiResponse(200, createdUser, "User registered Successfully")

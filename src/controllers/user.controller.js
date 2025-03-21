@@ -18,10 +18,7 @@ const generateAccessAndRefreshtokens = async (userID) => {
         //     console.log("✅ generateAccessToken exists!");
         // } else {
         //     console.log("❌ Method does not exist!");
-        // }
-
-
-        
+        // }       
 
         const accessToken = user.generateAccessToken()
         const refreshToken = user.generateRefreshToken()
@@ -155,7 +152,7 @@ const loginUser = asyncHandler(async (req, res) => {
     }
 
     const { accessToken, refreshToken } = await generateAccessAndRefreshtokens(user._id)
-    console.log(accessToken, refreshToken)
+    // console.log(accessToken, refreshToken)
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
     // console.log("Logged in user ",loggedInUser)
@@ -166,6 +163,7 @@ const loginUser = asyncHandler(async (req, res) => {
         secure: true
     }
 
+        console.log(res.getHeaders)
     return res
         .status(200)
         .cookie("accessToken", accessToken, options)
@@ -174,7 +172,7 @@ const loginUser = asyncHandler(async (req, res) => {
             new ApiResponse(
                 200, {
                 // user: loggedInUser, accessToken, refreshToken,
-                  user:loggedInUser, accessToken, refreshToken, success: true,
+                user: loggedInUser, accessToken, refreshToken, success: true,
             },
                 "User LoggedIn Successfully"
             )
@@ -200,12 +198,12 @@ const logoutUser = asyncHandler(async (req, res) => {
         secure: true
     }
 
-    res.send(200)
-    .clearCookie("accessToken",options)
-    .clearCookie("refreshToken", options)
-    .json(
-       new ApiResponse (200, { success: true}, "User Logged Out")
-    )
+    res.status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(
+            new ApiResponse(200, { success: true }, "User Logged Out")
+        )
 })
 
 export { registerUser, loginUser, logoutUser }

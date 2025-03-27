@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken"
 import multer from "multer"
 import { throwDeprecation } from "process"
 import { subscribe } from "diagnostics_channel"
+import mongoose from "mongoose"
 
 const generateAccessAndRefreshtokens = async (userID) => {
 
@@ -263,7 +264,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
     const { oldPassword, newPassword } = req.body
 
-    const user = User.findById(req.user?._id)
+    const user = await User.findById(req.user?._id)
     //TODO - user.isPassword check krna hai
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
@@ -432,19 +433,65 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         }
     ])
 
-    if(!channel?.length){
+    if (!channel?.length) {
         throw new ApiError(400, "channel does not exist")
     }
 
     console.log("channel details ", channel) // todo
 
     return res.status(200)
-    .json(
-        new ApiResponse(200, channel[0], " user channel fetch successfully")
-    )
+        .json(
+            new ApiResponse(200, channel[0], " user channel fetch successfully")
+        )
 
 })
 
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.ObjectId(req.user._id)
+            }
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        from: "users",
+                        localField: "owner",
+                        foreignField: "_id",
+                        as: "owner",
+                        pipeline: [
+                            {
+                                $project: {
+                                    fullName: 1,
+                                    username: 1,
+                                    avatar: 1
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+        },
+        {
+            $addFields:{
+                owner:{
+                    $first:"$owner"
+                }
+            }
+        }
+    ])
+
+    res.status(200)
+    .json(
+        new ApiResponse(200, user[0].watchHistory, "watch history fetch succesfully")
+    )
+})
 
 export {
     registerUser,
@@ -457,5 +504,6 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
+    getWatchHistory,
 
 }

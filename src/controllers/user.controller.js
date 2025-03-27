@@ -5,6 +5,8 @@ import { uploadOncloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
 import multer from "multer"
+import { throwDeprecation } from "process"
+import { subscribe } from "diagnostics_channel"
 
 const generateAccessAndRefreshtokens = async (userID) => {
 
@@ -327,19 +329,19 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "error while uploading avatar on cloud")
     }
 
-   const user =  await User.findByIdAndUpdate(req.user?._id,
+    const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: {
-                avatar:avatar.url
+                avatar: avatar.url
             }
         },
-        {new: true}
+        { new: true }
     ).select("-password")
 
     return res.status(200)
-    .json(
-        new ApiResponse(200, user, "avatar updated successfully")
-    )
+        .json(
+            new ApiResponse(200, user, "avatar updated successfully")
+        )
 })
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
@@ -355,21 +357,93 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "error while uploading avatar on cloud")
     }
 
-   const user =  await User.findByIdAndUpdate(req.user?._id,
+    const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: {
-                coverImage:coverImage.url
+                coverImage: coverImage.url
             }
         },
-        {new: true}
+        { new: true }
     ).select("-password")
 
     return res.status(200)
-    .json(
-        new ApiResponse(200, user, "avatar updated successfully")
-    )
+        .json(
+            new ApiResponse(200, user, "avatar updated successfully")
+        )
 })
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "username is missing")
+    }
+
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username.toLowerCase()
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",      // ✅ Lookup in the 'subscriptions' collection
+                localField: "_id",          // ✅ User ka ID match karna hai
+                foreignField: "subscriber", // ✅ "subscriber" field se match karega
+                as: "subscribeTo"           // ✅ Matched data "subscribeTo" array me store hoga
+            }
+        },
+        {
+            $addFields: {
+                subscriberCount: {
+                    $size: "$subscribers"
+                },
+                channelsSubscribedToCount: {
+                    $size: "$subscribeTo"
+                },
+                isSubscribed: { //this might not work
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                fullName: 1,
+                username: 1,
+                email: 1,
+                avatar: 1,
+                coverImage: 1,
+                subscriberCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1
+            }
+        }
+    ])
+
+    if(!channel?.length){
+        throw new ApiError(400, "channel does not exist")
+    }
+
+    console.log("channel details ", channel) // todo
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, channel[0], " user channel fetch successfully")
+    )
+
+})
 
 
 export {
@@ -382,5 +456,6 @@ export {
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
+    getUserChannelProfile,
 
 }

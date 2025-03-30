@@ -4,9 +4,6 @@ import { User } from "../models/user.model.js"
 import { uploadOncloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
-import multer from "multer"
-import { throwDeprecation } from "process"
-import { subscribe } from "diagnostics_channel"
 import mongoose from "mongoose"
 
 const generateAccessAndRefreshtokens = async (userID) => {
@@ -265,12 +262,14 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body
 
     const user = await User.findById(req.user?._id)
-    //TODO - user.isPassword check krna hai
+
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
     if (!isPasswordCorrect) {
         throw new ApiError(401, "Invailid old Password")
     }
+
+    console.log(user.password)
 
     user.password = newPassword
     await user.save({ validateBeforeSave: false })
@@ -284,20 +283,23 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 const getCurrentUser = asyncHandler(async (req, res) => {
     const user = req.user
-    return res.status(200)
-        .json(
-            new ApiResponse(200, { user, success: true }, "current user fetch successfully")
-        )
-})
+    if (!user) {
+        throw new ApiError(401, "Unauthorized access") // Global error middleware handle karega
+    }
+
+    res.status(200).json(
+        new ApiResponse(200, { user: user, success: true }, "Current user fetched successfully")
+    );
+});
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const { fullName, email } = req.body
 
-    if (!(fullName || email)) {
+    if (!fullName && !email) {
         throw new ApiError(400, "All fields are required")
     }
 
-    const user = User.findByIdAndUpdate(req.user?._id, {
+    const user = await User.findByIdAndUpdate(req.user?._id, {
         $set: {
             fullName,
             email
@@ -311,7 +313,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
     return res.status(200)
         .json(
-            200, { user, success: true }, "All details update successfully"
+            new ApiResponse(200, user, "Datails Update Successfully")
         )
 
 })
@@ -383,7 +385,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     const channel = await User.aggregate([
         {
             $match: {
-                username: username.toLowerCase()
+                username: username?.toLowerCase()
             }
         },
         {
@@ -396,53 +398,53 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         },
         {
             $lookup: {
-                from: "subscriptions",      // ✅ Lookup in the 'subscriptions' collection
-                localField: "_id",          // ✅ User ka ID match karna hai
-                foreignField: "subscriber", // ✅ "subscriber" field se match karega
-                as: "subscribeTo"           // ✅ Matched data "subscribeTo" array me store hoga
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
             }
         },
         {
             $addFields: {
-                subscriberCount: {
-                    $size: "$subscribers"
+                subscribersCount: {
+                    $size:"$subscribers"
                 },
-                channelsSubscribedToCount: {
-                    $size: "$subscribeTo"
+                subscribedTo:{
+                    $size:"$subscribedTo"
                 },
-                isSubscribed: { //this might not work
-                    $cond: {
-                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
-                        then: true,
-                        else: false
+                isSubscribed:{
+                    $cond:{
+                        if:{$in: [req.user?._id, "$subscriptions.subscriber"]},
+                        then:true,
+                        else:false
                     }
                 }
             }
         },
         {
-            $project: {
+            $project:{
                 fullName: 1,
                 username: 1,
-                email: 1,
+                subscribersCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
                 avatar: 1,
                 coverImage: 1,
-                subscriberCount: 1,
-                channelsSubscribedToCount: 1,
-                isSubscribed: 1
+                email: 1
             }
         }
     ])
 
-    if (!channel?.length) {
-        throw new ApiError(400, "channel does not exist")
+    console.log(channel)
+    if(!channel.length){
+        throw new ApiError(404, "user channel not exists")
     }
 
-    console.log("channel details ", channel) // todo
+    res.status(200)
+    .json(
+        new ApiResponse(200, channel[0], "user channel fetched successfully")
+    )
 
-    return res.status(200)
-        .json(
-            new ApiResponse(200, channel[0], " user channel fetch successfully")
-        )
 
 })
 
@@ -450,7 +452,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     const user = await User.aggregate([
         {
             $match: {
-                _id: new mongoose.ObjectId(req.user._id)
+                _id: new mongoose.Types.ObjectId(req.user._id)
             }
         },
         {
@@ -479,18 +481,18 @@ const getWatchHistory = asyncHandler(async (req, res) => {
             },
         },
         {
-            $addFields:{
-                owner:{
-                    $first:"$owner"
+            $addFields: {
+                owner: {
+                    $first: "$owner"
                 }
             }
         }
     ])
 
     res.status(200)
-    .json(
-        new ApiResponse(200, user[0].watchHistory, "watch history fetch succesfully")
-    )
+        .json(
+            new ApiResponse(200, user.watchHistory, "watch history fetch succesfully")
+        )
 })
 
 export {
